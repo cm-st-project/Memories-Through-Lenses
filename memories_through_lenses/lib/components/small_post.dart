@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:memories_through_lenses/services/database.dart';
 import 'package:memories_through_lenses/size_config.dart';
 import 'package:video_player/video_player.dart';
@@ -83,11 +84,16 @@ class _SmallPostCardState extends State<SmallPostCard> {
                                 ),
                               );
                             },
-                            child: Image.network(
-                              widget.mediaURL,
+                            child: CachedNetworkImage(
+                              imageUrl: widget.mediaURL,
                               width: double.infinity,
                               height: double.infinity,
                               fit: BoxFit.cover,
+                              placeholder: (context, url) => const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  const Center(child: Icon(Icons.error)),
                             ),
                           )
                         : FutureBuilder(

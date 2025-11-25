@@ -42,6 +42,42 @@ class _YearbookScreenState extends State<YearbookScreen> {
     return items;
   }
 
+  void _showDeleteDialog(String postId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Remove from Yearbook'),
+          content: const Text(
+              'Are you sure you want to remove this image from your yearbook?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await Database().removeFromYearbook(postId);
+                setState(() {
+                  posts.removeWhere((post) => post.id == postId);
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Image removed from yearbook')),
+                  );
+                }
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Remove'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> getPosts() async {
     try {
       // Get current user data
@@ -58,6 +94,8 @@ class _YearbookScreenState extends State<YearbookScreen> {
       List<dynamic> groups = userData['groups'] ?? [];
 
       List<PostData> temp = [];
+      String currentUserId = Auth().user?.uid ?? '';
+
       for (var postID in yearbookList) {
         Map<String, dynamic>? post = await Database().getPost(postID);
         if (post == null ||
@@ -72,6 +110,15 @@ class _YearbookScreenState extends State<YearbookScreen> {
         if (createdAt.year.toString() != selectedYear) {
           continue;
         }
+
+        // Check if user has liked or disliked this post
+        String userOpinion = "none";
+        if (post['likes']?.contains(currentUserId) ?? false) {
+          userOpinion = "like";
+        } else if (post['dislikes']?.contains(currentUserId) ?? false) {
+          userOpinion = "dislike";
+        }
+
         temp.add(PostData(
           id: post['id'],
           creator: post['user_id'],
@@ -82,6 +129,7 @@ class _YearbookScreenState extends State<YearbookScreen> {
           dislikes: post['dislikes'].length,
           created_at: DateTime.fromMillisecondsSinceEpoch(
               post['created_at'].seconds * 1000),
+          userOpinion: userOpinion,
         ));
       }
       temp = temp
@@ -193,30 +241,43 @@ class _YearbookScreenState extends State<YearbookScreen> {
                 ),
               ],
             )
-          : Container(
-              child: Center(
-                child: GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 5,
-                            mainAxisSpacing: 5,
-                            childAspectRatio: 0.7),
-                    itemCount: posts.length,
-                    itemBuilder: (context, index) {
-                      return SmallPostCard(
-                        id: posts[index].id,
-                        creator: posts[index].creator,
-                        mediaURL: posts[index].mediaURL,
-                        mediaType: posts[index].mediaType,
-                        caption: posts[index].caption,
-                        likes: posts[index].likes,
-                        dislikes: posts[index].dislikes,
-                        created_at: posts[index].created_at,
-                      );
-                    }),
-              ),
+          : Center(
+            child: Column(
+              children: [
+                Expanded(
+                  flex: 15,
+                  child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 5,
+                              mainAxisSpacing: 5,
+                              childAspectRatio: 0.7),
+                      itemCount: posts.length,
+                      itemBuilder: (context, index) {
+                        return GestureDetector(
+                          onLongPress: () => _showDeleteDialog(posts[index].id),
+                          child: SmallPostCard(
+                            id: posts[index].id,
+                            creator: posts[index].creator,
+                            mediaURL: posts[index].mediaURL,
+                            mediaType: posts[index].mediaType,
+                            caption: posts[index].caption,
+                            likes: posts[index].likes,
+                            dislikes: posts[index].dislikes,
+                            created_at: posts[index].created_at,
+                          ),
+                        );
+                      }),
+                ),
+                Expanded(
+                  child: Text('Long press an image to remove it from your yearbook.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.merriweather(fontSize: 12, color: Colors.grey)),
+                ),
+              ],
             ),
+          ),
     );
   }
 }

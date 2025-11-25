@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:memories_through_lenses/size_config.dart';
 import 'package:memories_through_lenses/services/database.dart';
 import 'package:memories_through_lenses/services/auth.dart';
@@ -90,11 +91,14 @@ class _CommentState extends State<Comment> {
                       radius: 20,
                       backgroundImage: AssetImage("assets/generic_profile.png"),
                     )
-                  :
-              CircleAvatar(
-                radius: 20,
-                backgroundImage: NetworkImage(widget.profilePic),
-              ),
+                  : CircleAvatar(
+                      radius: 20,
+                      backgroundImage: CachedNetworkImageProvider(
+                        widget.profilePic,
+                        maxHeight: 100,
+                        maxWidth: 100,
+                      ),
+                    ),
               Container(
                 color: Colors.white,
                 width: SizeConfig.blockSizeHorizontal! * 70,

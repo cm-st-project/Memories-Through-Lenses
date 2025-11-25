@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:memories_through_lenses/components/buttons.dart';
 import 'package:memories_through_lenses/components/friend_card.dart';
 import 'package:memories_through_lenses/components/post.dart';
@@ -329,9 +330,13 @@ class _HomePageState extends State<HomePage> {
                                 width: SizeConfig.blockSizeHorizontal! * 25,
                                 child: ClipRRect(
                                     borderRadius: BorderRadius.circular(100),
-                                    child: Image.network(
-                                      userData!["profile_image"],
+                                    child: CachedNetworkImage(
+                                      imageUrl: userData!["profile_image"],
                                       fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          const CircularProgressIndicator(),
+                                      errorWidget: (context, url, error) =>
+                                          Image.asset("assets/generic_profile.png"),
                                     )),
                               )
                             : SizedBox(

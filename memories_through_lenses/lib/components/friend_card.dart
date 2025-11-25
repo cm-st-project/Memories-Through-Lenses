@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:memories_through_lenses/size_config.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:memories_through_lenses/services/auth.dart';
@@ -85,7 +86,11 @@ class _FriendCardState extends State<FriendCard> {
               radius: min(SizeConfig.blockSizeHorizontal! * 5, 37.5),
               backgroundColor: Colors.grey[300],
               backgroundImage: _profileImage != null
-                  ? NetworkImage(_profileImage!)
+                  ? CachedNetworkImageProvider(
+                      _profileImage!,
+                      maxHeight: 100,
+                      maxWidth: 100,
+                    )
                   : null,
               child: _profileImage == null
                   ? Icon(Icons.person, color: Colors.grey[600])

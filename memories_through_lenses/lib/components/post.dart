@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:memories_through_lenses/screens/comments.dart';
 import 'package:memories_through_lenses/services/auth.dart';
@@ -7,9 +8,8 @@ import 'package:memories_through_lenses/services/database.dart';
 import 'package:memories_through_lenses/size_config.dart';
 import 'package:video_player/video_player.dart';
 
-// ignore: must_be_immutable
 class PostCard extends StatefulWidget {
-  PostCard({
+  const PostCard({
     super.key,
     required this.id,
     required this.mediaURL,
@@ -17,9 +17,9 @@ class PostCard extends StatefulWidget {
     required this.caption,
     required this.creator,
     required this.created_at,
-    this.likes = 0,
-    this.dislikes = 0,
-    this.userOpinion = "none",
+    required this.likes,
+    required this.dislikes,
+    required this.userOpinion,
   });
 
   final String id;
@@ -27,10 +27,10 @@ class PostCard extends StatefulWidget {
   final String mediaType;
   final String creator;
   final DateTime created_at;
-  int likes = 0;
-  int dislikes = 0;
+  final int likes;
+  final int dislikes;
   final String caption;
-  String userOpinion; // "like", "dislike", or "none"
+  final String userOpinion; // "like", "dislike", or "none"
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -41,9 +41,19 @@ class _PostCardState extends State<PostCard> {
   bool isLoadingUserData = true;
   int commentCount = 0;
 
+  // Mutable state variables
+  late int currentLikes;
+  late int currentDislikes;
+  late String currentUserOpinion;
+
   @override
   void initState() {
     super.initState();
+    // Initialize state variables from widget properties
+    currentLikes = widget.likes;
+    currentDislikes = widget.dislikes;
+    currentUserOpinion = widget.userOpinion;
+
     _fetchUserData();
     _fetchCommentCount();
   }
@@ -152,15 +162,16 @@ class _PostCardState extends State<PostCard> {
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(20),
                           child: userData?['profile_image'] != null
-                              ? Image.network(
-                                  userData!['profile_image'],
+                              ? CachedNetworkImage(
+                                  imageUrl: userData!['profile_image'],
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Image.asset(
-                                      "assets/generic_profile.png",
-                                      fit: BoxFit.cover,
-                                    );
-                                  },
+                                  placeholder: (context, url) =>
+                                      const CircularProgressIndicator(),
+                                  errorWidget: (context, url, error) =>
+                                      Image.asset(
+                                        "assets/generic_profile.png",
+                                        fit: BoxFit.cover,
+                                      ),
                                 )
                               : Image.asset(
                                   "assets/generic_profile.png",
@@ -223,17 +234,16 @@ class _PostCardState extends State<PostCard> {
                                 ),
                               );
                             },
-                            child: Image.network(
-                              widget.mediaURL,
+                            child: CachedNetworkImage(
+                              imageUrl: widget.mediaURL,
                               width: double.infinity,
-                              height: MediaQuery.of(context).size.height*0.4,
-                              fit: BoxFit.fitHeight,
-                              errorBuilder: (BuildContext context, Object error,
-                                  StackTrace? stackTrace) {
-                                return const Center(
-                                  child: Text("Image not found"),
-                                );
-                              },
+                              height: MediaQuery.of(context).size.height * 0.4,
+                              fit: BoxFit.contain,
+                              placeholder: (context, url) => const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                              errorWidget: (context, url, error) =>
+                                  const Center(child: Text("Image not found")),
                             ),
                           )
                         : FutureBuilder(
@@ -323,32 +333,47 @@ class _PostCardState extends State<PostCard> {
                         height: SizeConfig.blockSizeHorizontal! * 10,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
+                              backgroundColor:
+                                  Colors.green,
+
                               padding: EdgeInsets.all(0.0)),
                           child: Icon(
-                            Icons.thumb_up,
-                            color: Colors.white,
+                            currentUserOpinion == "like"
+                                ? Icons.thumb_up
+                                : Icons.thumb_up_outlined,
+                            color: currentUserOpinion == "like"
+                                ? Colors.white
+                                : Colors.black54,
+
                           ),
                           onPressed: () async {
+                            print('=== LIKE BUTTON PRESSED ===');
+                            print('Before - Likes: $currentLikes, Dislikes: $currentDislikes, Opinion: $currentUserOpinion');
+
                             // Store previous state for rollback on error
-                            final prevLikes = widget.likes;
-                            final prevDislikes = widget.dislikes;
-                            final prevOpinion = widget.userOpinion;
+                            final prevLikes = currentLikes;
+                            final prevDislikes = currentDislikes;
+                            final prevOpinion = currentUserOpinion;
 
                             // Optimistically update UI
                             setState(() {
-                              if (widget.userOpinion == "like") {
-                                widget.likes--;
-                                widget.userOpinion = "none";
-                              } else if (widget.userOpinion == "dislike") {
-                                widget.dislikes--;
-                                widget.userOpinion = "like";
-                                widget.likes++;
+                              if (currentUserOpinion == "like") {
+                                currentLikes--;
+                                currentUserOpinion = "none";
+                                print('Action: Unliked (removed like)');
+                              } else if (currentUserOpinion == "dislike") {
+                                currentDislikes--;
+                                currentUserOpinion = "like";
+                                currentLikes++;
+                                print('Action: Changed from dislike to like');
                               } else {
-                                widget.userOpinion = "like";
-                                widget.likes++;
+                                currentUserOpinion = "like";
+                                currentLikes++;
+                                print('Action: Added new like');
                               }
                             });
+
+                            print('After - Likes: $currentLikes, Dislikes: $currentDislikes, Opinion: $currentUserOpinion');
 
                             // Perform database operation
                             try {
@@ -358,9 +383,9 @@ class _PostCardState extends State<PostCard> {
                               // Rollback UI on error
                               if (mounted) {
                                 setState(() {
-                                  widget.likes = prevLikes;
-                                  widget.dislikes = prevDislikes;
-                                  widget.userOpinion = prevOpinion;
+                                  currentLikes = prevLikes;
+                                  currentDislikes = prevDislikes;
+                                  currentUserOpinion = prevOpinion;
                                 });
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -373,7 +398,7 @@ class _PostCardState extends State<PostCard> {
                           },
                         ),
                       ),
-                      Text("${widget.likes}")
+                      Text("$currentLikes", key: ValueKey(currentLikes))
                     ],
                   ),
                   SizedBox(
@@ -387,32 +412,43 @@ class _PostCardState extends State<PostCard> {
                         height: SizeConfig.blockSizeHorizontal! * 10,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
+                              backgroundColor:
+                                  Colors.red,
                               padding: EdgeInsets.all(0.0)),
                           child: Icon(
-                            Icons.thumb_down,
-                            color: Colors.white,
+                            currentUserOpinion == "dislike"
+                                ? Icons.thumb_down
+                                : Icons.thumb_down_outlined,
+                            color: currentUserOpinion == "dislike"
+                                ? Colors.white
+                                : Colors.black54,
                           ),
                           onPressed: () async {
+
                             // Store previous state for rollback on error
-                            final prevLikes = widget.likes;
-                            final prevDislikes = widget.dislikes;
-                            final prevOpinion = widget.userOpinion;
+                            final prevLikes = currentLikes;
+                            final prevDislikes = currentDislikes;
+                            final prevOpinion = currentUserOpinion;
 
                             // Optimistically update UI
                             setState(() {
-                              if (widget.userOpinion == "dislike") {
-                                widget.dislikes--;
-                                widget.userOpinion = "none";
-                              } else if (widget.userOpinion == "like") {
-                                widget.likes--;
-                                widget.userOpinion = "dislike";
-                                widget.dislikes++;
+                              if (currentUserOpinion == "dislike") {
+                                currentDislikes--;
+                                currentUserOpinion = "none";
+                                print('Action: Removed dislike');
+                              } else if (currentUserOpinion == "like") {
+                                currentLikes--;
+                                currentUserOpinion = "dislike";
+                                currentDislikes++;
+                                print('Action: Changed from like to dislike');
                               } else {
-                                widget.userOpinion = "dislike";
-                                widget.dislikes++;
+                                currentUserOpinion = "dislike";
+                                currentDislikes++;
+                                print('Action: Added new dislike');
                               }
                             });
+
+                            print('After - Likes: $currentLikes, Dislikes: $currentDislikes, Opinion: $currentUserOpinion');
 
                             // Perform database operation
                             try {
@@ -422,9 +458,9 @@ class _PostCardState extends State<PostCard> {
                               // Rollback UI on error
                               if (mounted) {
                                 setState(() {
-                                  widget.likes = prevLikes;
-                                  widget.dislikes = prevDislikes;
-                                  widget.userOpinion = prevOpinion;
+                                  currentLikes = prevLikes;
+                                  currentDislikes = prevDislikes;
+                                  currentUserOpinion = prevOpinion;
                                 });
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
@@ -437,7 +473,7 @@ class _PostCardState extends State<PostCard> {
                           },
                         ),
                       ),
-                      Text("${widget.dislikes}"),
+                      Text("$currentDislikes", key: ValueKey(currentDislikes)),
                     ],
                   ),
                   SizedBox(

@@ -226,13 +226,22 @@ class Database {
   }
 
   Future<void> likePost(String postId) async {
-    // check if the user previously disliked the post
     var post = await _firestore.collection('posts').doc(postId).get();
+    var likes = post.data()!['likes'];
     var dislikes = post.data()!['dislikes'];
+
+    // If user already liked, remove the like (toggle off)
+    if (likes.contains(_auth.user!.uid)) {
+      await removeLikePost(postId);
+      return;
+    }
+
+    // If user previously disliked, remove the dislike
     if (dislikes.contains(_auth.user!.uid)) {
       await removeDislikePost(postId);
     }
 
+    // Add the like
     await _firestore.collection('posts').doc(postId).update({
       'likes': FieldValue.arrayUnion([_auth.user!.uid])
     });
@@ -245,13 +254,22 @@ class Database {
   }
 
   Future<void> dislikePost(String postId) async {
-    // check if the user previously liked the post
     var post = await _firestore.collection('posts').doc(postId).get();
     var likes = post.data()!['likes'];
+    var dislikes = post.data()!['dislikes'];
+
+    // If user already disliked, remove the dislike (toggle off)
+    if (dislikes.contains(_auth.user!.uid)) {
+      await removeDislikePost(postId);
+      return;
+    }
+
+    // If user previously liked, remove the like
     if (likes.contains(_auth.user!.uid)) {
       await removeLikePost(postId);
     }
 
+    // Add the dislike
     await _firestore.collection('posts').doc(postId).update({
       'dislikes': FieldValue.arrayUnion([_auth.user!.uid])
     });
@@ -720,6 +738,13 @@ class Database {
   Future<void> blockUser(String uid) async {
     _firestore.collection('users').doc(_auth.user!.uid).update({
       'blocked': FieldValue.arrayUnion([uid])
+    });
+  }
+
+  // Remove a post from the user's yearbook
+  Future<void> removeFromYearbook(String postId) async {
+    await _firestore.collection('users').doc(_auth.user!.uid).update({
+      'yearbook': FieldValue.arrayRemove([postId])
     });
   }
 }
