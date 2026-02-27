@@ -37,11 +37,28 @@ class _FriendCardState extends State<FriendCard> {
   String? _profileImage;
   String? _currentName;
   bool _isLoading = true;
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     _fetchUserData();
+  }
+
+  @override
+  void didUpdateWidget(FriendCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset processing state when widget is updated (e.g., after removing from pending)
+    if (widget.type == FriendCardType.addFriend) {
+      _isProcessing = false;
+    }
+    // Re-fetch user data if the uid changed
+    if (oldWidget.uid != widget.uid) {
+      _profileImage = null;
+      _currentName = null;
+      _isLoading = true;
+      _fetchUserData();
+    }
   }
 
   Future<void> _fetchUserData() async {
@@ -209,52 +226,79 @@ class _FriendCardState extends State<FriendCard> {
                 )
               : Container(),
           (widget.type == FriendCardType.addFriend)
-              ? SizedBox(
-                  width: min(SizeConfig.blockSizeHorizontal! * 10, 75),
-                  height: min(SizeConfig.blockSizeHorizontal! * 10, 75),
-                  child: ElevatedButton(
-                      onPressed: () {
-                        // Check if trying to send friend request to yourself
-                        if (widget.uid == Auth().user!.uid) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('You cannot send a friend request to yourself'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                          return;
-                        }
+              ? Builder(
+                  builder: (context) {
+                    // Check if already in outgoing requests from provider
+                    Map<String, dynamic> outgoingRequests =
+                        provider.userData?['outgoing_requests'] ?? {};
+                    bool alreadyRequested = outgoingRequests.containsKey(widget.uid);
+                    bool isDisabled = _isProcessing || alreadyRequested;
 
-                        // add friend request at users/{uid}/friend_requests/$uid
-                        FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(Auth().user!.uid)
-                            .update({
-                          'outgoing_requests.${widget.uid}': {'name': _currentName ?? widget.name},
-                        }).catchError((error) {
-                          print('Failed to add friend request: $error');
-                        }).then((value) {
-                          // write request on receiver's side
-                          FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(widget.uid)
-                              .update({
-                            'friend_requests.${Auth().user!.uid}': {
-                              'name': provider.userData?['name'] ?? ''
-                            },
-                          }).catchError((error) {
-                            print('Failed to add outgoing request: $error');
-                          }).then((value) {
-                            widget.onPressed();
-                          });
-                        });
-                      },
-                      style: ButtonStyle(
-                        padding: WidgetStateProperty.all(EdgeInsets.zero),
-                        backgroundColor: WidgetStateProperty.all(Colors.blue),
-                        shape: WidgetStateProperty.all(const CircleBorder()),
-                      ),
-                      child: const Icon(Icons.person_add, color: Colors.white)),
+                    return SizedBox(
+                      width: min(SizeConfig.blockSizeHorizontal! * 10, 75),
+                      height: min(SizeConfig.blockSizeHorizontal! * 10, 75),
+                      child: ElevatedButton(
+                          onPressed: isDisabled ? null : () async {
+                            setState(() {
+                              _isProcessing = true;
+                            });
+
+                            // Check if trying to send friend request to yourself
+                            if (widget.uid == Auth().user!.uid) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('You cannot send a friend request to yourself'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              if (mounted) {
+                                setState(() {
+                                  _isProcessing = false;
+                                });
+                              }
+                              return;
+                            }
+
+                            try {
+                              // add friend request at users/{uid}/friend_requests/$uid
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(Auth().user!.uid)
+                                  .update({
+                                'outgoing_requests.${widget.uid}': {'name': _currentName ?? widget.name},
+                              });
+
+                              // write request on receiver's side
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(widget.uid)
+                                  .update({
+                                'friend_requests.${Auth().user!.uid}': {
+                                  'name': provider.userData?['name'] ?? ''
+                                },
+                              });
+
+                              await provider.loadUserData();
+                              widget.onPressed();
+                            } catch (error) {
+                              print('Failed to add friend request: $error');
+                              if (mounted) {
+                                setState(() {
+                                  _isProcessing = false;
+                                });
+                              }
+                            }
+                          },
+                          style: ButtonStyle(
+                            padding: WidgetStateProperty.all(EdgeInsets.zero),
+                            backgroundColor: WidgetStateProperty.all(
+                              isDisabled ? Colors.grey : Colors.blue
+                            ),
+                            shape: WidgetStateProperty.all(const CircleBorder()),
+                          ),
+                          child: const Icon(Icons.person_add, color: Colors.white)),
+                    );
+                  },
                 )
               : Container(),
           (widget.type == FriendCardType.request)

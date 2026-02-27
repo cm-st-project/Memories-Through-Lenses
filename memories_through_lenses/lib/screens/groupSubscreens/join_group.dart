@@ -179,7 +179,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen> {
             pendingGroups.add(GroupCard(
                 name: groupData['name'],
                 groupID: groupID,
-                type: GroupCardType.invite));
+                type: GroupCardType.pendingRequest));
           });
         }
       }

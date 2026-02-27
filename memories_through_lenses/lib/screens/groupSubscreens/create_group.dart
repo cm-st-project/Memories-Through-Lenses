@@ -31,27 +31,28 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   @override
   void initState() {
     super.initState();
-    loadFriends();
+    loadUsers();
   }
 
-  Future<void> loadFriends() async {
+  Future<void> loadUsers() async {
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(Auth().user!.uid)
-          .get();
+      // Load all users from the database
+      final allUsers = await Database().getUsers();
+      final currentUserId = Auth().user!.uid;
 
-      if (userDoc.exists && mounted) {
-        Map<String, dynamic> friends = userDoc.data()?['friends'] ?? {};
+      if (mounted) {
         setState(() {
           users.clear();
-          for (var key in friends.keys) {
-            users.add(User(name: friends[key]['name'], uid: key));
+          for (var userData in allUsers) {
+            // Exclude the current user
+            if (userData['uid'] != currentUserId) {
+              users.add(User(name: userData['name'] ?? 'Unknown', uid: userData['uid']));
+            }
           }
         });
       }
     } catch (e) {
-      print('Error loading friends: $e');
+      print('Error loading users: $e');
     }
   }
 
@@ -193,7 +194,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                 size: 48, color: Colors.grey[400]),
                             const SizedBox(height: 12),
                             Text(
-                              'No Friends Available',
+                              'No Users Available',
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -202,7 +203,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Add friends to invite them to your group',
+                              'No other users found to invite',
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 color: Colors.grey[500],

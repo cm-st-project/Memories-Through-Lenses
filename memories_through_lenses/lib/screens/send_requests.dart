@@ -26,6 +26,7 @@ class _SentScreenState extends State<SentScreen> {
         setState(() {
           if (value.isNotEmpty) {
             users = value;
+            searchResults = value; // Show all users when text field is empty
           }
         });
       });
@@ -64,18 +65,19 @@ class _SentScreenState extends State<SentScreen> {
               Map<String, dynamic> requests =
                   provider.userData?['outgoing_requests'] ?? {};
               Map<String, dynamic> friends = provider.userData?['friends'] ?? {};
+              Map<String, dynamic> incomingRequests =
+                  provider.userData?['friend_requests'] ?? {};
 
               requests.forEach((key, value) {
                 outgoingRequests.add(FriendCard(
+                  key: ValueKey('sent_$key'),
                   type: FriendCardType.sentRequest,
                   name: value['name'],
                   uid: key,
                   onPressed: () async {
-                    // Refresh provider data after action
+                    // Refresh provider data and search results after action
                     await provider.loadUserData();
-                    if (mounted) {
-                      setState(() {});
-                    }
+                    await search(_controller.text);
                   },
                 ));
               });
@@ -84,15 +86,14 @@ class _SentScreenState extends State<SentScreen> {
               friends.forEach((key, value) {
                 print("key: $key, value: $value");
                 currentFriends.add(FriendCard(
+                  key: ValueKey('friend_$key'),
                   type: FriendCardType.currentFriend,
                   name: value['name'],
                   uid: key,
                   onPressed: () async {
-                    // Refresh provider data after action
+                    // Refresh provider data and search results after action
                     await provider.loadUserData();
-                    if (mounted) {
-                      setState(() {});
-                    }
+                    await search(_controller.text);
                   },
                 ));
               });
@@ -140,16 +141,21 @@ class _SentScreenState extends State<SentScreen> {
                 if (alreadyFriends) {
                   continue;
                 }
+
+                // Check if the user has already sent us a friend request
+                if (incomingRequests.containsKey(element['uid'])) {
+                  continue;
+                }
+
                 combined.add(FriendCard(
+                  key: ValueKey('add_${element['uid']}'),
                   type: FriendCardType.addFriend,
                   name: element['name'],
                   uid: element['uid'],
                   onPressed: () async {
-                    // Refresh provider data after action
+                    // Refresh provider data and search results after action
                     await provider.loadUserData();
-                    if (mounted) {
-                      setState(() {});
-                    }
+                    await search(_controller.text);
                   },
                 ));
               }
